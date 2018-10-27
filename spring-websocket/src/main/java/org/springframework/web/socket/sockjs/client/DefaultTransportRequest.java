@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.util.Assert;
 import org.springframework.util.concurrent.ListenableFutureCallback;
@@ -45,12 +46,14 @@ import org.springframework.web.socket.sockjs.transport.TransportType;
  */
 class DefaultTransportRequest implements TransportRequest {
 
-	private static Log logger = LogFactory.getLog(DefaultTransportRequest.class);
+	private static final Log logger = LogFactory.getLog(DefaultTransportRequest.class);
 
 
 	private final SockJsUrlInfo sockJsUrlInfo;
 
 	private final HttpHeaders handshakeHeaders;
+
+	private final HttpHeaders httpRequestHeaders;
 
 	private final Transport transport;
 
@@ -58,26 +61,31 @@ class DefaultTransportRequest implements TransportRequest {
 
 	private SockJsMessageCodec codec;
 
+	@Nullable
 	private Principal user;
 
 	private long timeoutValue;
 
+	@Nullable
 	private TaskScheduler timeoutScheduler;
 
-	private final List<Runnable> timeoutTasks = new ArrayList<Runnable>();
+	private final List<Runnable> timeoutTasks = new ArrayList<>();
 
+	@Nullable
 	private DefaultTransportRequest fallbackRequest;
 
 
-	public DefaultTransportRequest(SockJsUrlInfo sockJsUrlInfo, HttpHeaders handshakeHeaders,
+	public DefaultTransportRequest(SockJsUrlInfo sockJsUrlInfo,
+			@Nullable HttpHeaders handshakeHeaders, @Nullable HttpHeaders httpRequestHeaders,
 			Transport transport, TransportType serverTransportType, SockJsMessageCodec codec) {
 
-		Assert.notNull(sockJsUrlInfo, "'sockJsUrlInfo' is required");
-		Assert.notNull(transport, "'transport' is required");
-		Assert.notNull(serverTransportType, "'transportType' is required");
-		Assert.notNull(codec, "'codec' is required");
+		Assert.notNull(sockJsUrlInfo, "SockJsUrlInfo is required");
+		Assert.notNull(transport, "Transport is required");
+		Assert.notNull(serverTransportType, "TransportType is required");
+		Assert.notNull(codec, "SockJsMessageCodec is required");
 		this.sockJsUrlInfo = sockJsUrlInfo;
 		this.handshakeHeaders = (handshakeHeaders != null ? handshakeHeaders : new HttpHeaders());
+		this.httpRequestHeaders = (httpRequestHeaders != null ? httpRequestHeaders : new HttpHeaders());
 		this.transport = transport;
 		this.serverTransportType = serverTransportType;
 		this.codec = codec;
@@ -95,6 +103,11 @@ class DefaultTransportRequest implements TransportRequest {
 	}
 
 	@Override
+	public HttpHeaders getHttpRequestHeaders() {
+		return this.httpRequestHeaders;
+	}
+
+	@Override
 	public URI getTransportUrl() {
 		return this.sockJsUrlInfo.getTransportUrl(this.serverTransportType);
 	}
@@ -104,6 +117,7 @@ class DefaultTransportRequest implements TransportRequest {
 	}
 
 	@Override
+	@Nullable
 	public Principal getUser() {
 		return this.user;
 	}
@@ -181,7 +195,7 @@ class DefaultTransportRequest implements TransportRequest {
 		}
 
 		@Override
-		public void onSuccess(WebSocketSession session) {
+		public void onSuccess(@Nullable WebSocketSession session) {
 			if (this.handled.compareAndSet(false, true)) {
 				this.future.set(session);
 			}
@@ -200,12 +214,12 @@ class DefaultTransportRequest implements TransportRequest {
 			handleFailure(null, true);
 		}
 
-		private void handleFailure(Throwable ex, boolean isTimeoutFailure) {
+		private void handleFailure(@Nullable Throwable ex, boolean isTimeoutFailure) {
 			if (this.handled.compareAndSet(false, true)) {
 				if (isTimeoutFailure) {
 					String message = "Connect timed out for " + DefaultTransportRequest.this;
 					logger.error(message);
-					ex = new SockJsTransportFailureException(message, getSockJsUrlInfo().getSessionId(), null);
+					ex = new SockJsTransportFailureException(message, getSockJsUrlInfo().getSessionId(), ex);
 				}
 				if (fallbackRequest != null) {
 					logger.error(DefaultTransportRequest.this + " failed. Falling back on next transport.", ex);
@@ -213,7 +227,9 @@ class DefaultTransportRequest implements TransportRequest {
 				}
 				else {
 					logger.error("No more fallback transports after " + DefaultTransportRequest.this, ex);
-					this.future.setException(ex);
+					if (ex != null) {
+						this.future.setException(ex);
+					}
 				}
 				if (isTimeoutFailure) {
 					try {

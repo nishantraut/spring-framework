@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import org.junit.rules.ExpectedException;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.lang.Nullable;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionException;
@@ -34,9 +35,6 @@ import org.springframework.util.SerializationTestUtils;
 
 import static org.junit.Assert.*;
 import static org.mockito.BDDMockito.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 /**
  * Mock object based tests for TransactionInterceptor.
@@ -48,6 +46,7 @@ public class TransactionInterceptorTests extends AbstractTransactionAspectTests 
 
 	@Rule
 	public final ExpectedException thrown = ExpectedException.none();
+
 
 	@Override
 	protected Object advised(Object target, PlatformTransactionManager ptm, TransactionAttributeSource[] tas) throws Exception {
@@ -77,6 +76,7 @@ public class TransactionInterceptorTests extends AbstractTransactionAspectTests 
 		pf.addAdvice(0, ti);
 		return pf.getProxy();
 	}
+
 
 	/**
 	 * A TransactionInterceptor should be serializable if its
@@ -111,7 +111,7 @@ public class TransactionInterceptorTests extends AbstractTransactionAspectTests 
 		tas2.setProperties(props);
 
 		TransactionInterceptor ti = new TransactionInterceptor();
-		ti.setTransactionAttributeSources(new TransactionAttributeSource[] {tas1, tas2});
+		ti.setTransactionAttributeSources(tas1, tas2);
 		PlatformTransactionManager ptm = new SerializableTransactionManager();
 		ti.setTransactionManager(ptm);
 		ti = (TransactionInterceptor) SerializationTestUtils.serializeAndDeserialize(ti);
@@ -257,8 +257,10 @@ public class TransactionInterceptorTests extends AbstractTransactionAspectTests 
 		verify(beanFactory, times(1)).getBean(PlatformTransactionManager.class);
 	}
 
+
 	private TransactionInterceptor createTransactionInterceptor(BeanFactory beanFactory,
 			String transactionManagerName, PlatformTransactionManager transactionManager) {
+
 		TransactionInterceptor ti = new TransactionInterceptor();
 		if (beanFactory != null) {
 			ti.setBeanFactory(beanFactory);
@@ -306,7 +308,7 @@ public class TransactionInterceptorTests extends AbstractTransactionAspectTests 
 	public static class SerializableTransactionManager implements PlatformTransactionManager, Serializable {
 
 		@Override
-		public TransactionStatus getTransaction(TransactionDefinition definition) throws TransactionException {
+		public TransactionStatus getTransaction(@Nullable TransactionDefinition definition) throws TransactionException {
 			throw new UnsupportedOperationException();
 		}
 
@@ -319,6 +321,6 @@ public class TransactionInterceptorTests extends AbstractTransactionAspectTests 
 		public void rollback(TransactionStatus status) throws TransactionException {
 			throw new UnsupportedOperationException();
 		}
-
 	}
+
 }

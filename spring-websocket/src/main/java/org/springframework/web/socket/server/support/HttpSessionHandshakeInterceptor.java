@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import javax.servlet.http.HttpSession;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
+import org.springframework.lang.Nullable;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.server.HandshakeInterceptor;
@@ -53,6 +54,8 @@ public class HttpSessionHandshakeInterceptor implements HandshakeInterceptor {
 	private boolean copyAllAttributes;
 
 	private boolean copyHttpSessionId = true;
+
+	private boolean createSession;
 
 
 	/**
@@ -121,6 +124,22 @@ public class HttpSessionHandshakeInterceptor implements HandshakeInterceptor {
 		return this.copyHttpSessionId;
 	}
 
+	/**
+	 * Whether to allow the HTTP session to be created while accessing it.
+	 * <p>By default set to {@code false}.
+	 * @see javax.servlet.http.HttpServletRequest#getSession(boolean)
+	 */
+	public void setCreateSession(boolean createSession) {
+		this.createSession = createSession;
+	}
+
+	/**
+	 * Whether the HTTP session is allowed to be created.
+	 */
+	public boolean isCreateSession() {
+		return this.createSession;
+	}
+
 
 	@Override
 	public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
@@ -142,17 +161,18 @@ public class HttpSessionHandshakeInterceptor implements HandshakeInterceptor {
 		return true;
 	}
 
+	@Nullable
 	private HttpSession getSession(ServerHttpRequest request) {
 		if (request instanceof ServletServerHttpRequest) {
 			ServletServerHttpRequest serverRequest = (ServletServerHttpRequest) request;
-			return serverRequest.getServletRequest().getSession(false);
+			return serverRequest.getServletRequest().getSession(isCreateSession());
 		}
 		return null;
 	}
 
 	@Override
 	public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
-			WebSocketHandler wsHandler, Exception ex) {
+			WebSocketHandler wsHandler, @Nullable Exception ex) {
 	}
 
 }

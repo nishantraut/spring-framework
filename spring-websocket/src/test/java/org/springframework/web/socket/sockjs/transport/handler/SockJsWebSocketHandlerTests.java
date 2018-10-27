@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package org.springframework.web.socket.sockjs.transport.handler;
 
+import java.util.Collections;
+
 import org.junit.Test;
 
 import org.springframework.messaging.SubscribableChannel;
@@ -31,10 +33,10 @@ import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for {@link SockJsWebSocketHandler}.
+ *
  * @author Rossen Stoyanchev
  */
 public class SockJsWebSocketHandlerTests {
-
 
 	@Test
 	public void getSubProtocols() throws Exception {
@@ -59,7 +61,7 @@ public class SockJsWebSocketHandlerTests {
 		WebSocketServerSockJsSession session = new WebSocketServerSockJsSession("1", service, handler, null);
 		SockJsWebSocketHandler sockJsHandler = new SockJsWebSocketHandler(service, handler, session);
 
-		assertNull(sockJsHandler.getSubProtocols());
+		assertEquals(Collections.emptyList(), sockJsHandler.getSubProtocols());
 	}
 
 }

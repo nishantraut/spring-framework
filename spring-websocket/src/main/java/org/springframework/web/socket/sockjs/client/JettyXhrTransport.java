@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import org.springframework.context.Lifecycle;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.concurrent.SettableListenableFuture;
 import org.springframework.web.client.HttpServerErrorException;
@@ -43,7 +44,6 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.sockjs.SockJsException;
 import org.springframework.web.socket.sockjs.SockJsTransportFailureException;
 import org.springframework.web.socket.sockjs.frame.SockJsFrame;
-
 
 /**
  * An XHR transport based on Jetty's {@link org.eclipse.jetty.client.HttpClient}.
@@ -61,7 +61,7 @@ import org.springframework.web.socket.sockjs.frame.SockJsFrame;
  * @author Rossen Stoyanchev
  * @since 4.1
  */
-public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransport, Lifecycle {
+public class JettyXhrTransport extends AbstractXhrTransport implements Lifecycle {
 
 	private final HttpClient httpClient;
 
@@ -83,8 +83,8 @@ public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransp
 				this.httpClient.start();
 			}
 		}
-		catch (Exception e) {
-			throw new SockJsException("Failed to start " + this, e);
+		catch (Exception ex) {
+			throw new SockJsException("Failed to start JettyXhrTransport", ex);
 		}
 	}
 
@@ -95,8 +95,8 @@ public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransp
 				this.httpClient.stop();
 			}
 		}
-		catch (Exception e) {
-			throw new SockJsException("Failed to stop " + this, e);
+		catch (Exception ex) {
+			throw new SockJsException("Failed to stop JettyXhrTransport", ex);
 		}
 	}
 
@@ -105,9 +105,29 @@ public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransp
 		return this.httpClient.isRunning();
 	}
 
+
 	@Override
-	protected ResponseEntity<String> executeInfoRequestInternal(URI infoUrl) {
-		return executeRequest(infoUrl, HttpMethod.GET, getRequestHeaders(), null);
+	protected void connectInternal(TransportRequest transportRequest, WebSocketHandler handler,
+			URI url, HttpHeaders handshakeHeaders, XhrClientSockJsSession session,
+			SettableListenableFuture<WebSocketSession> connectFuture) {
+
+		HttpHeaders httpHeaders = transportRequest.getHttpRequestHeaders();
+		SockJsResponseListener listener = new SockJsResponseListener(url, httpHeaders, session, connectFuture);
+		executeReceiveRequest(url, handshakeHeaders, listener);
+	}
+
+	private void executeReceiveRequest(URI url, HttpHeaders headers, SockJsResponseListener listener) {
+		if (logger.isTraceEnabled()) {
+			logger.trace("Starting XHR receive request, url=" + url);
+		}
+		Request httpRequest = this.httpClient.newRequest(url).method(HttpMethod.POST);
+		addHttpHeaders(httpRequest, headers);
+		httpRequest.send(listener);
+	}
+
+	@Override
+	protected ResponseEntity<String> executeInfoRequestInternal(URI infoUrl, HttpHeaders headers) {
+		return executeRequest(infoUrl, HttpMethod.GET, headers, null);
 	}
 
 	@Override
@@ -115,7 +135,9 @@ public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransp
 		return executeRequest(url, HttpMethod.POST, headers, message.getPayload());
 	}
 
-	protected ResponseEntity<String> executeRequest(URI url, HttpMethod method, HttpHeaders headers, String body) {
+	protected ResponseEntity<String> executeRequest(URI url, HttpMethod method,
+			HttpHeaders headers, @Nullable String body) {
+
 		Request httpRequest = this.httpClient.newRequest(url).method(method);
 		addHttpHeaders(httpRequest, headers);
 		if (body != null) {
@@ -126,21 +148,22 @@ public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransp
 			response = httpRequest.send();
 		}
 		catch (Exception ex) {
-			throw new SockJsTransportFailureException("Failed to execute request to " + url, null, ex);
+			throw new SockJsTransportFailureException("Failed to execute request to " + url, ex);
 		}
 		HttpStatus status = HttpStatus.valueOf(response.getStatus());
 		HttpHeaders responseHeaders = toHttpHeaders(response.getHeaders());
 		return (response.getContent() != null ?
-			new ResponseEntity<String>(response.getContentAsString(), responseHeaders, status) :
-			new ResponseEntity<String>(responseHeaders, status));
+				new ResponseEntity<>(response.getContentAsString(), responseHeaders, status) :
+				new ResponseEntity<>(responseHeaders, status));
 	}
 
+
 	private static void addHttpHeaders(Request request, HttpHeaders headers) {
-		for (String name : headers.keySet()) {
-			for (String value : headers.get(name)) {
-				request.header(name, value);
+		headers.forEach((key, values) -> {
+			for (String value : values) {
+				request.header(key, value);
 			}
-		}
+		});
 	}
 
 	private static HttpHeaders toHttpHeaders(HttpFields httpFields) {
@@ -157,28 +180,11 @@ public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransp
 		return responseHeaders;
 	}
 
-	@Override
-	protected void connectInternal(TransportRequest request, WebSocketHandler handler,
-			URI url, HttpHeaders handshakeHeaders, XhrClientSockJsSession session,
-			SettableListenableFuture<WebSocketSession> connectFuture) {
-
-		SockJsResponseListener listener = new SockJsResponseListener(url, getRequestHeaders(), session, connectFuture);
-		executeReceiveRequest(url, handshakeHeaders, listener);
-	}
-
-	private void executeReceiveRequest(URI url, HttpHeaders headers, SockJsResponseListener listener) {
-		if (logger.isTraceEnabled()) {
-			logger.trace("Starting XHR receive request, url=" + url);
-		}
-		Request httpRequest = this.httpClient.newRequest(url).method(HttpMethod.POST);
-		addHttpHeaders(httpRequest, headers);
-		httpRequest.send(listener);
-	}
-
 
 	/**
-	 * Splits the body of an HTTP response into SockJS frames and delegates those
-	 * to an {@link XhrClientSockJsSession}.
+	 * Jetty client {@link org.eclipse.jetty.client.api.Response.Listener Response
+	 * Listener} that splits the body of the response into SockJS frames and
+	 * delegates them to the {@link XhrClientSockJsSession}.
 	 */
 	private class SockJsResponseListener extends Response.Listener.Adapter {
 
@@ -192,7 +198,6 @@ public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransp
 
 		private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-
 		public SockJsResponseListener(URI url, HttpHeaders headers,	XhrClientSockJsSession sockJsSession,
 				SettableListenableFuture<WebSocketSession> connectFuture) {
 
@@ -201,7 +206,6 @@ public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransp
 			this.connectFuture = connectFuture;
 			this.sockJsSession = sockJsSession;
 		}
-
 
 		@Override
 		public void onBegin(Response response) {
@@ -267,7 +271,7 @@ public class JettyXhrTransport extends AbstractXhrTransport implements XhrTransp
 
 		@Override
 		public void onFailure(Response response, Throwable failure) {
-			if (connectFuture.setException(failure)) {
+			if (this.connectFuture.setException(failure)) {
 				return;
 			}
 			if (this.sockJsSession.isDisconnected()) {

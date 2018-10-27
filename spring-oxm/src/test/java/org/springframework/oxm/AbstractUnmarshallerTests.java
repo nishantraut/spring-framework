@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2009 the original author or authors.
+ * Copyright 2002-2015 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Text;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
-import org.xml.sax.helpers.XMLReaderFactory;
 
 import org.springframework.util.xml.StaxUtils;
 
@@ -45,10 +44,11 @@ import static org.junit.Assert.*;
 
 /**
  * @author Arjen Poutsma
+ * @author Sam Brannen
  */
-public abstract class AbstractUnmarshallerTests {
+public abstract class AbstractUnmarshallerTests<U extends Unmarshaller> {
 
-	protected Unmarshaller unmarshaller;
+	protected U unmarshaller;
 
 	protected static final String INPUT_STRING =
 			"<tns:flights xmlns:tns=\"http://samples.springframework.org/flight\">" +
@@ -59,7 +59,7 @@ public abstract class AbstractUnmarshallerTests {
 		unmarshaller = createUnmarshaller();
 	}
 
-	protected abstract Unmarshaller createUnmarshaller() throws Exception;
+	protected abstract U createUnmarshaller() throws Exception;
 
 	protected abstract void testFlights(Object o);
 
@@ -97,8 +97,9 @@ public abstract class AbstractUnmarshallerTests {
 	}
 
 	@Test
+	@SuppressWarnings("deprecation")
 	public void unmarshalSAXSource() throws Exception {
-		XMLReader reader = XMLReaderFactory.createXMLReader();
+		XMLReader reader = org.xml.sax.helpers.XMLReaderFactory.createXMLReader();
 		SAXSource source = new SAXSource(reader, new InputSource(new StringReader(INPUT_STRING)));
 		Object flights = unmarshaller.unmarshal(source);
 		testFlights(flights);
@@ -154,4 +155,5 @@ public abstract class AbstractUnmarshallerTests {
 		Object flight = unmarshaller.unmarshal(source);
 		testFlight(flight);
 	}
+
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,10 +34,10 @@ import org.springframework.web.servlet.view.freemarker.FreeMarkerViewResolver;
 import org.springframework.web.servlet.view.groovy.GroovyMarkupConfigurer;
 import org.springframework.web.servlet.view.groovy.GroovyMarkupViewResolver;
 import org.springframework.web.servlet.view.json.MappingJackson2JsonView;
+import org.springframework.web.servlet.view.script.ScriptTemplateConfigurer;
+import org.springframework.web.servlet.view.script.ScriptTemplateViewResolver;
 import org.springframework.web.servlet.view.tiles3.TilesConfigurer;
 import org.springframework.web.servlet.view.tiles3.TilesViewResolver;
-import org.springframework.web.servlet.view.velocity.VelocityConfigurer;
-import org.springframework.web.servlet.view.velocity.VelocityViewResolver;
 import org.springframework.web.servlet.view.xml.MarshallingView;
 
 import static org.junit.Assert.*;
@@ -54,15 +54,14 @@ public class ViewResolverRegistryTests {
 
 
 	@Before
-	public void setUp() {
+	public void setup() {
 		StaticWebApplicationContext context = new StaticWebApplicationContext();
 		context.registerSingleton("freeMarkerConfigurer", FreeMarkerConfigurer.class);
-		context.registerSingleton("velocityConfigurer", VelocityConfigurer.class);
 		context.registerSingleton("tilesConfigurer", TilesConfigurer.class);
 		context.registerSingleton("groovyMarkupConfigurer", GroovyMarkupConfigurer.class);
-		this.registry = new ViewResolverRegistry();
-		this.registry.setApplicationContext(context);
-		this.registry.setContentNegotiationManager(new ContentNegotiationManager());
+		context.registerSingleton("scriptTemplateConfigurer", ScriptTemplateConfigurer.class);
+
+		this.registry = new ViewResolverRegistry(new ContentNegotiationManager(), context);
 	}
 
 
@@ -76,7 +75,7 @@ public class ViewResolverRegistryTests {
 	@Test
 	public void hasRegistrations() {
 		assertFalse(this.registry.hasRegistrations());
-		this.registry.velocity();
+		this.registry.freeMarker();
 		assertTrue(this.registry.hasRegistrations());
 	}
 
@@ -96,9 +95,7 @@ public class ViewResolverRegistryTests {
 
 	@Test
 	public void customViewResolver() {
-		InternalResourceViewResolver viewResolver = new InternalResourceViewResolver();
-		viewResolver.setPrefix("/");
-		viewResolver.setSuffix(".jsp");
+		InternalResourceViewResolver viewResolver = new InternalResourceViewResolver("/", ".jsp");
 		this.registry.viewResolver(viewResolver);
 		assertSame(viewResolver, this.registry.getViewResolvers().get(0));
 	}
@@ -141,20 +138,6 @@ public class ViewResolverRegistryTests {
 	}
 
 	@Test
-	public void velocity() {
-		this.registry.velocity().prefix("/").suffix(".vm").cache(true);
-		VelocityViewResolver resolver = checkAndGetResolver(VelocityViewResolver.class);
-		checkPropertyValues(resolver, "prefix", "/", "suffix", ".vm", "cacheLimit", 1024);
-	}
-
-	@Test
-	public void velocityDefaultValues() {
-		this.registry.velocity();
-		VelocityViewResolver resolver = checkAndGetResolver(VelocityViewResolver.class);
-		checkPropertyValues(resolver, "prefix", "", "suffix", ".vm");
-	}
-
-	@Test
 	public void freeMarker() {
 		this.registry.freeMarker().prefix("/").suffix(".fmt").cache(false);
 		FreeMarkerViewResolver resolver = checkAndGetResolver(FreeMarkerViewResolver.class);
@@ -180,6 +163,20 @@ public class ViewResolverRegistryTests {
 		this.registry.groovy();
 		GroovyMarkupViewResolver resolver = checkAndGetResolver(GroovyMarkupViewResolver.class);
 		checkPropertyValues(resolver, "prefix", "", "suffix", ".tpl");
+	}
+
+	@Test
+	public void scriptTemplate() {
+		this.registry.scriptTemplate().prefix("/").suffix(".html").cache(true);
+		ScriptTemplateViewResolver resolver = checkAndGetResolver(ScriptTemplateViewResolver.class);
+		checkPropertyValues(resolver, "prefix", "/", "suffix", ".html", "cacheLimit", 1024);
+	}
+
+	@Test
+	public void scriptTemplateDefaultValues() {
+		this.registry.scriptTemplate();
+		ScriptTemplateViewResolver resolver = checkAndGetResolver(ScriptTemplateViewResolver.class);
+		checkPropertyValues(resolver, "prefix", "", "suffix", "");
 	}
 
 	@Test

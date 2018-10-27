@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 
 package org.springframework.web.socket.messaging;
 
+import java.security.Principal;
+
+import org.springframework.lang.Nullable;
 import org.springframework.messaging.Message;
 import org.springframework.util.Assert;
 import org.springframework.web.socket.CloseStatus;
@@ -41,13 +44,29 @@ public class SessionDisconnectEvent extends AbstractSubProtocolEvent {
 	/**
 	 * Create a new SessionDisconnectEvent.
 	 * @param source the component that published the event (never {@code null})
-	 * @param message the message
+	 * @param message the message (never {@code null})
 	 * @param sessionId the disconnect message
 	 * @param closeStatus the status object
 	 */
-	public SessionDisconnectEvent(Object source, Message<byte[]> message, String sessionId, CloseStatus closeStatus) {
-		super(source, message);
-		Assert.notNull(sessionId, "'sessionId' must not be null");
+	public SessionDisconnectEvent(Object source, Message<byte[]> message, String sessionId,
+			CloseStatus closeStatus) {
+
+		this(source, message, sessionId, closeStatus, null);
+	}
+
+	/**
+	 * Create a new SessionDisconnectEvent.
+	 * @param source the component that published the event (never {@code null})
+	 * @param message the message (never {@code null})
+	 * @param sessionId the disconnect message
+	 * @param closeStatus the status object
+	 * @param user the current session user
+	 */
+	public SessionDisconnectEvent(Object source, Message<byte[]> message, String sessionId,
+			CloseStatus closeStatus, @Nullable Principal user) {
+
+		super(source, message, user);
+		Assert.notNull(sessionId, "Session id must not be null");
 		this.sessionId = sessionId;
 		this.status = closeStatus;
 	}
@@ -67,10 +86,10 @@ public class SessionDisconnectEvent extends AbstractSubProtocolEvent {
 		return this.status;
 	}
 
+
 	@Override
 	public String toString() {
-		return "SessionDisconnectEvent[sessionId=" + this.sessionId + ", " +
-				(this.status != null ? this.status.toString() : "closeStatus=null") + "]";
+		return "SessionDisconnectEvent[sessionId=" + this.sessionId + ", " + this.status.toString() + "]";
 	}
 
 }

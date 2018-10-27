@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ public class ExpressionValueMethodArgumentResolverTests {
 	private NativeWebRequest webRequest;
 
 	@Before
+	@SuppressWarnings("resource")
 	public void setUp() throws Exception {
 		GenericWebApplicationContext context = new GenericWebApplicationContext();
 		context.refresh();
@@ -97,8 +98,7 @@ public class ExpressionValueMethodArgumentResolverTests {
 	}
 
 	public void params(@Value("#{systemProperties.systemProperty}") int param1,
-					   @Value("#{request.contextPath}") String param2,
-					   String notSupported) {
+			@Value("#{request.contextPath}") String param2, String notSupported) {
 	}
 
 }

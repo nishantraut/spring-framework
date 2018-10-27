@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,6 @@
 
 package org.springframework.web.socket.config.annotation;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import org.junit.Test;
+
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -39,6 +35,7 @@ import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.broker.SimpleBrokerMessageHandler;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.simp.user.UserDestinationMessageHandler;
@@ -46,11 +43,11 @@ import org.springframework.messaging.support.AbstractSubscribableChannel;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.ExecutorSubscribableChannel;
 import org.springframework.messaging.support.ImmutableMessageChannelInterceptor;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping;
-import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.config.WebSocketMessageBrokerStats;
@@ -63,14 +60,15 @@ import org.springframework.web.socket.messaging.SubProtocolHandler;
 import org.springframework.web.socket.messaging.SubProtocolWebSocketHandler;
 import org.springframework.web.socket.server.support.WebSocketHttpRequestHandler;
 
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
+
 /**
- * Test fixture for
- * {@link org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurationSupport}.
+ * Test fixture for {@link WebSocketMessageBrokerConfigurationSupport}.
  *
  * @author Rossen Stoyanchev
  */
 public class WebSocketMessageBrokerConfigurationSupportTests {
-
 
 	@Test
 	public void handlerMapping() {
@@ -92,11 +90,12 @@ public class WebSocketMessageBrokerConfigurationSupportTests {
 		List<ChannelInterceptor> interceptors = channel.getInterceptors();
 		assertEquals(ImmutableMessageChannelInterceptor.class, interceptors.get(interceptors.size()-1).getClass());
 
-		WebSocketSession session = new TestWebSocketSession("s1");
+		TestWebSocketSession session = new TestWebSocketSession("s1");
+		session.setOpen(true);
 		webSocketHandler.afterConnectionEstablished(session);
 
-		TextMessage textMessage = StompTextMessageBuilder.create(StompCommand.SEND).headers("destination:/foo").build();
-		webSocketHandler.handleMessage(session, textMessage);
+		webSocketHandler.handleMessage(session,
+				StompTextMessageBuilder.create(StompCommand.SEND).headers("destination:/foo").build());
 
 		Message<?> message = channel.messages.get(0);
 		StompHeaderAccessor accessor = StompHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
@@ -134,30 +133,32 @@ public class WebSocketMessageBrokerConfigurationSupportTests {
 	}
 
 	@Test
-	public void webSocketTransportOptions() {
+	public void webSocketHandler() {
 		ApplicationContext config = createConfig(TestChannelConfig.class, TestConfigurer.class);
-		SubProtocolWebSocketHandler subProtocolWebSocketHandler =
-				config.getBean("subProtocolWebSocketHandler", SubProtocolWebSocketHandler.class);
+		SubProtocolWebSocketHandler subWsHandler = config.getBean(SubProtocolWebSocketHandler.class);
 
-		assertEquals(1024 * 1024, subProtocolWebSocketHandler.getSendBufferSizeLimit());
-		assertEquals(25 * 1000, subProtocolWebSocketHandler.getSendTimeLimit());
+		assertEquals(1024 * 1024, subWsHandler.getSendBufferSizeLimit());
+		assertEquals(25 * 1000, subWsHandler.getSendTimeLimit());
+		assertEquals(30 * 1000, subWsHandler.getTimeToFirstMessage());
 
-		List<SubProtocolHandler> protocolHandlers = subProtocolWebSocketHandler.getProtocolHandlers();
-		for(SubProtocolHandler protocolHandler : protocolHandlers) {
-			assertTrue(protocolHandler instanceof StompSubProtocolHandler);
-			assertEquals(128 * 1024, ((StompSubProtocolHandler) protocolHandler).getMessageSizeLimit());
-		}
+		Map<String, SubProtocolHandler> handlerMap = subWsHandler.getProtocolHandlerMap();
+		StompSubProtocolHandler protocolHandler = (StompSubProtocolHandler) handlerMap.get("v12.stomp");
+		assertEquals(128 * 1024, protocolHandler.getMessageSizeLimit());
 	}
 
 	@Test
-	public void messageBrokerSockJsTaskScheduler() {
+	public void taskScheduler() {
 		ApplicationContext config = createConfig(TestChannelConfig.class, TestConfigurer.class);
-		ThreadPoolTaskScheduler taskScheduler =
-				config.getBean("messageBrokerSockJsTaskScheduler", ThreadPoolTaskScheduler.class);
 
+		String name = "messageBrokerSockJsTaskScheduler";
+		ThreadPoolTaskScheduler taskScheduler = config.getBean(name, ThreadPoolTaskScheduler.class);
 		ScheduledThreadPoolExecutor executor = taskScheduler.getScheduledThreadPoolExecutor();
 		assertEquals(Runtime.getRuntime().availableProcessors(), executor.getCorePoolSize());
 		assertTrue(executor.getRemoveOnCancelPolicy());
+
+		SimpleBrokerMessageHandler handler = config.getBean(SimpleBrokerMessageHandler.class);
+		assertNotNull(handler.getTaskScheduler());
+		assertArrayEquals(new long[] {15000, 15000}, handler.getHeartbeatValue());
 	}
 
 	@Test
@@ -217,7 +218,7 @@ public class WebSocketMessageBrokerConfigurationSupportTests {
 	}
 
 	@Configuration
-	static class TestConfigurer extends AbstractWebSocketMessageBrokerConfigurer {
+	static class TestConfigurer implements WebSocketMessageBrokerConfigurer {
 
 		@Bean
 		public TestController subscriptionController() {
@@ -234,6 +235,14 @@ public class WebSocketMessageBrokerConfigurationSupportTests {
 			registration.setMessageSizeLimit(128 * 1024);
 			registration.setSendTimeLimit(25 * 1000);
 			registration.setSendBufferSizeLimit(1024 * 1024);
+			registration.setTimeToFirstMessage(30 * 1000);
+		}
+
+		@Override
+		public void configureMessageBroker(MessageBrokerRegistry registry) {
+			registry.enableSimpleBroker()
+					.setTaskScheduler(mock(TaskScheduler.class))
+					.setHeartbeatValue(new long[] {15000, 15000});
 		}
 	}
 

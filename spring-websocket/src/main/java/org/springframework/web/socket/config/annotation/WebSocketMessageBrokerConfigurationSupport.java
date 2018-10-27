@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,19 +17,24 @@
 package org.springframework.web.socket.config.annotation;
 
 import org.springframework.beans.factory.config.CustomScopeConfigurer;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+import org.springframework.lang.Nullable;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
 import org.springframework.messaging.simp.SimpSessionScope;
+import org.springframework.messaging.simp.annotation.support.SimpAnnotationMethodMessageHandler;
 import org.springframework.messaging.simp.broker.AbstractBrokerMessageHandler;
 import org.springframework.messaging.simp.config.AbstractMessageBrokerConfiguration;
 import org.springframework.messaging.simp.stomp.StompBrokerRelayMessageHandler;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.config.WebSocketMessageBrokerStats;
 import org.springframework.web.socket.handler.WebSocketHandlerDecoratorFactory;
+import org.springframework.web.socket.messaging.DefaultSimpUserRegistry;
 import org.springframework.web.socket.messaging.SubProtocolWebSocketHandler;
+import org.springframework.web.socket.messaging.WebSocketAnnotationMethodMessageHandler;
 
 /**
  * Extends {@link AbstractMessageBrokerConfiguration} and adds configuration for
@@ -45,16 +50,34 @@ import org.springframework.web.socket.messaging.SubProtocolWebSocketHandler;
  */
 public abstract class WebSocketMessageBrokerConfigurationSupport extends AbstractMessageBrokerConfiguration {
 
+	@Nullable
 	private WebSocketTransportRegistration transportRegistration;
 
 
+	@Override
+	protected SimpAnnotationMethodMessageHandler createAnnotationMethodMessageHandler() {
+		return new WebSocketAnnotationMethodMessageHandler(
+				clientInboundChannel(), clientOutboundChannel(), brokerMessagingTemplate());
+	}
+
+	@Override
+	protected SimpUserRegistry createLocalUserRegistry(@Nullable Integer order) {
+		DefaultSimpUserRegistry registry = new DefaultSimpUserRegistry();
+		if (order != null) {
+			registry.setOrder(order);
+		}
+		return registry;
+	}
+
 	@Bean
 	public HandlerMapping stompWebSocketHandlerMapping() {
-		WebSocketHandler handler = subProtocolWebSocketHandler();
-		handler = decorateWebSocketHandler(handler);
-		WebMvcStompEndpointRegistry registry = new WebMvcStompEndpointRegistry(handler,
-				getTransportRegistration(), userSessionRegistry(), messageBrokerSockJsTaskScheduler());
-		registry.setApplicationContext(getApplicationContext());
+		WebSocketHandler handler = decorateWebSocketHandler(subProtocolWebSocketHandler());
+		WebMvcStompEndpointRegistry registry = new WebMvcStompEndpointRegistry(
+				handler, getTransportRegistration(), messageBrokerTaskScheduler());
+		ApplicationContext applicationContext = getApplicationContext();
+		if (applicationContext != null) {
+			registry.setApplicationContext(applicationContext);
+		}
 		registerStompEndpoints(registry);
 		return registry.getHandlerMapping();
 	}
@@ -84,31 +107,6 @@ public abstract class WebSocketMessageBrokerConfigurationSupport extends Abstrac
 
 	protected abstract void registerStompEndpoints(StompEndpointRegistry registry);
 
-	/**
-	 * The default TaskScheduler to use if none is configured via
-	 * {@link SockJsServiceRegistration#setTaskScheduler(org.springframework.scheduling.TaskScheduler)}, i.e.
-	 * <pre class="code">
-	 * &#064;Configuration
-	 * &#064;EnableWebSocketMessageBroker
-	 * public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
-	 *
-	 *   public void registerStompEndpoints(StompEndpointRegistry registry) {
-	 *     registry.addEndpoint("/stomp").withSockJS().setTaskScheduler(myScheduler());
-	 *   }
-	 *
-	 *   // ...
-	 * }
-	 * </pre>
-	 */
-	@Bean
-	public ThreadPoolTaskScheduler messageBrokerSockJsTaskScheduler() {
-		ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-		scheduler.setThreadNamePrefix("MessageBrokerSockJS-");
-		scheduler.setPoolSize(Runtime.getRuntime().availableProcessors());
-		scheduler.setRemoveOnCancelPolicy(true);
-		return scheduler;
-	}
-
 	@Bean
 	public static CustomScopeConfigurer webSocketScopeConfigurer() {
 		CustomScopeConfigurer configurer = new CustomScopeConfigurer();
@@ -119,18 +117,18 @@ public abstract class WebSocketMessageBrokerConfigurationSupport extends Abstrac
 	@Bean
 	public WebSocketMessageBrokerStats webSocketMessageBrokerStats() {
 		AbstractBrokerMessageHandler relayBean = stompBrokerRelayMessageHandler();
-		StompBrokerRelayMessageHandler brokerRelay = (relayBean instanceof StompBrokerRelayMessageHandler ?
-				(StompBrokerRelayMessageHandler) relayBean : null);
 
 		// Ensure STOMP endpoints are registered
 		stompWebSocketHandlerMapping();
 
 		WebSocketMessageBrokerStats stats = new WebSocketMessageBrokerStats();
 		stats.setSubProtocolWebSocketHandler((SubProtocolWebSocketHandler) subProtocolWebSocketHandler());
-		stats.setStompBrokerRelay(brokerRelay);
+		if (relayBean instanceof StompBrokerRelayMessageHandler) {
+			stats.setStompBrokerRelay((StompBrokerRelayMessageHandler) relayBean);
+		}
 		stats.setInboundChannelExecutor(clientInboundChannelExecutor());
 		stats.setOutboundChannelExecutor(clientOutboundChannelExecutor());
-		stats.setSockJsTaskScheduler(messageBrokerSockJsTaskScheduler());
+		stats.setSockJsTaskScheduler(messageBrokerTaskScheduler());
 		return stats;
 	}
 
@@ -138,8 +136,12 @@ public abstract class WebSocketMessageBrokerConfigurationSupport extends Abstrac
 	protected MappingJackson2MessageConverter createJacksonConverter() {
 		MappingJackson2MessageConverter messageConverter = super.createJacksonConverter();
 		// Use Jackson builder in order to have JSR-310 and Joda-Time modules registered automatically
-		messageConverter.setObjectMapper(Jackson2ObjectMapperBuilder.json()
-				.applicationContext(this.getApplicationContext()).build());
+		Jackson2ObjectMapperBuilder builder = Jackson2ObjectMapperBuilder.json();
+		ApplicationContext applicationContext = getApplicationContext();
+		if (applicationContext != null) {
+			builder.applicationContext(applicationContext);
+		}
+		messageConverter.setObjectMapper(builder.build());
 		return messageConverter;
 	}
 

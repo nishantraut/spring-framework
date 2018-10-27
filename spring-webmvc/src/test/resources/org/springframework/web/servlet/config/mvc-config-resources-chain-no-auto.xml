@@ -6,6 +6,7 @@
 		http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc.xsd">
 
 	<mvc:resources mapping="/resources/**" location="/, classpath:/META-INF/">
+		<mvc:cache-control max-age="3600" s-maxage="1800" cache-public="true"/>
 		<mvc:resource-chain resource-cache="false" auto-registration="false">
 			<mvc:resolvers>
 				<mvc:version-resolver>
@@ -14,7 +15,7 @@
 						<bean class="org.springframework.web.servlet.resource.ContentVersionStrategy" />
 					</mvc:version-strategy>
 				</mvc:version-resolver>
-				<ref bean="gzipResourceResolver"/>
+				<ref bean="encodedResourceResolver"/>
 				<bean class="org.springframework.web.servlet.resource.PathResourceResolver"/>
 			</mvc:resolvers>
 			<mvc:transformers>
@@ -26,7 +27,7 @@
 		</mvc:resource-chain>
 	</mvc:resources>
 
-	<bean id="gzipResourceResolver" class="org.springframework.web.servlet.resource.GzipResourceResolver" />
+	<bean id="encodedResourceResolver" class="org.springframework.web.servlet.resource.EncodedResourceResolver" />
 	<bean id="resourceCache" class="org.springframework.cache.concurrent.ConcurrentMapCache">
 		<constructor-arg name="name" value="resourceCache"/>
 	</bean>

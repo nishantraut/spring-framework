@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,13 +20,10 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.util.FileCopyUtils;
-import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
 /**
@@ -52,8 +49,8 @@ final class SimpleBufferingClientHttpRequest extends AbstractBufferingClientHttp
 
 
 	@Override
-	public HttpMethod getMethod() {
-		return HttpMethod.valueOf(this.connection.getRequestMethod());
+	public String getMethodValue() {
+		return this.connection.getRequestMethod();
 	}
 
 	@Override
@@ -69,12 +66,10 @@ final class SimpleBufferingClientHttpRequest extends AbstractBufferingClientHttp
 	@Override
 	protected ClientHttpResponse executeInternal(HttpHeaders headers, byte[] bufferedOutput) throws IOException {
 		addHeaders(this.connection, headers);
-
-		// JDK < 1.8 doesn't support getOutputStream with HTTP DELETE
-		if (HttpMethod.DELETE.equals(getMethod()) && bufferedOutput.length == 0) {
+		// JDK <1.8 doesn't support getOutputStream with HTTP DELETE
+		if (getMethod() == HttpMethod.DELETE && bufferedOutput.length == 0) {
 			this.connection.setDoOutput(false);
 		}
-
 		if (this.connection.getDoOutput() && this.outputStreaming) {
 			this.connection.setFixedLengthStreamingMode(bufferedOutput.length);
 		}
@@ -82,7 +77,10 @@ final class SimpleBufferingClientHttpRequest extends AbstractBufferingClientHttp
 		if (this.connection.getDoOutput()) {
 			FileCopyUtils.copy(bufferedOutput, this.connection.getOutputStream());
 		}
-
+		else {
+			// Immediately trigger the request in a no-output scenario as well
+			this.connection.getResponseCode();
+		}
 		return new SimpleClientHttpResponse(this.connection);
 	}
 
@@ -93,18 +91,18 @@ final class SimpleBufferingClientHttpRequest extends AbstractBufferingClientHttp
 	 * @param headers the headers to add
 	 */
 	static void addHeaders(HttpURLConnection connection, HttpHeaders headers) {
-		for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-			String headerName = entry.getKey();
+		headers.forEach((headerName, headerValues) -> {
 			if (HttpHeaders.COOKIE.equalsIgnoreCase(headerName)) {  // RFC 6265
-				String headerValue = StringUtils.collectionToDelimitedString(entry.getValue(), "; ");
+				String headerValue = StringUtils.collectionToDelimitedString(headerValues, "; ");
 				connection.setRequestProperty(headerName, headerValue);
 			}
 			else {
-				for (String headerValue : entry.getValue()) {
-					connection.addRequestProperty(headerName, headerValue);
+				for (String headerValue : headerValues) {
+					String actualHeaderValue = headerValue != null ? headerValue : "";
+					connection.addRequestProperty(headerName, actualHeaderValue);
 				}
 			}
-		}
+		});
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ public interface WebSocketHandlerRegistration {
 
 	/**
 	 * Add more handlers that will share the same configuration (interceptors, SockJS
-	 * config, etc)
+	 * config, etc).
 	 */
 	WebSocketHandlerRegistration addHandler(WebSocketHandler handler, String... paths);
 
@@ -50,12 +50,12 @@ public interface WebSocketHandlerRegistration {
 	 * {@code Origin} header value.
 	 *
 	 * <p>When SockJS is enabled and origins are restricted, transport types that do not
-	 * allow to check request origin (JSONP and Iframe based transports) are disabled.
+	 * allow to check request origin (Iframe based transports) are disabled.
 	 * As a consequence, IE 6 to 9 are not supported when origins are restricted.
 	 *
 	 * <p>Each provided allowed origin must start by "http://", "https://" or be "*"
-	 * (means that all origins are allowed). Empty allowed origin list is not supported.
-	 * By default, all origins are allowed.
+	 * (means that all origins are allowed). By default, only same origin requests are
+	 * allowed (empty list).
 	 *
 	 * @since 4.1.2
 	 * @see <a href="https://tools.ietf.org/html/rfc6454">RFC 6454: The Web Origin Concept</a>

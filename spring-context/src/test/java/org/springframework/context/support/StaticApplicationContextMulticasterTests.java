@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import org.junit.Test;
+
 import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.factory.support.PropertiesBeanDefinitionReader;
 import org.springframework.context.ACATester;
@@ -32,7 +34,10 @@ import org.springframework.core.ResolvableType;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.EncodedResource;
+import org.springframework.lang.Nullable;
 import org.springframework.tests.sample.beans.TestBean;
+
+import static org.junit.Assert.*;
 
 /**
  * Tests for static application context with custom application event multicaster.
@@ -43,11 +48,10 @@ public class StaticApplicationContextMulticasterTests extends AbstractApplicatio
 
 	protected StaticApplicationContext sac;
 
-	/** Run for each test */
 	@Override
 	protected ConfigurableApplicationContext createContext() throws Exception {
 		StaticApplicationContext parent = new StaticApplicationContext();
-		Map<String, String> m = new HashMap<String, String>();
+		Map<String, String> m = new HashMap<>();
 		m.put("name", "Roderick");
 		parent.registerPrototype("rod", TestBean.class, new MutablePropertyValues(m));
 		m.put("name", "Albert");
@@ -74,16 +78,17 @@ public class StaticApplicationContextMulticasterTests extends AbstractApplicatio
 		return sac;
 	}
 
-	/** Overridden */
+	@Test
 	@Override
-	public void testCount() {
+	public void count() {
 		assertCount(15);
 	}
 
+	@Test
 	@Override
-	public void testEvents() throws Exception {
+	public void events() throws Exception {
 		TestApplicationEventMulticaster.counter = 0;
-		super.testEvents();
+		super.events();
 		assertEquals(1, TestApplicationEventMulticaster.counter);
 	}
 
@@ -93,7 +98,7 @@ public class StaticApplicationContextMulticasterTests extends AbstractApplicatio
 		private static int counter = 0;
 
 		@Override
-		public void multicastEvent(ApplicationEvent event, ResolvableType eventType) {
+		public void multicastEvent(ApplicationEvent event, @Nullable ResolvableType eventType) {
 			super.multicastEvent(event, eventType);
 			counter++;
 		}

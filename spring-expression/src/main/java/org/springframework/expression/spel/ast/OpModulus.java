@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import org.springframework.expression.Operation;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.CodeFlow;
 import org.springframework.expression.spel.ExpressionState;
+import org.springframework.util.Assert;
 import org.springframework.util.NumberUtils;
 
 /**
@@ -57,15 +58,11 @@ public class OpModulus extends Operator {
 				return new TypedValue(leftBigDecimal.remainder(rightBigDecimal));
 			}
 			else if (leftNumber instanceof Double || rightNumber instanceof Double) {
-				if (leftNumber.getClass() == rightNumber.getClass()) {
-					this.exitTypeDescriptor = "D";
-				}
+				this.exitTypeDescriptor = "D";
 				return new TypedValue(leftNumber.doubleValue() % rightNumber.doubleValue());
 			}
 			else if (leftNumber instanceof Float || rightNumber instanceof Float) {
-				if (leftNumber.getClass() == rightNumber.getClass()) {
-					this.exitTypeDescriptor = "F";
-				}
+				this.exitTypeDescriptor = "F";
 				return new TypedValue(leftNumber.floatValue() % rightNumber.floatValue());
 			}
 			else if (leftNumber instanceof BigInteger || rightNumber instanceof BigInteger) {
@@ -74,15 +71,11 @@ public class OpModulus extends Operator {
 				return new TypedValue(leftBigInteger.remainder(rightBigInteger));
 			}
 			else if (leftNumber instanceof Long || rightNumber instanceof Long) {
-				if (leftNumber.getClass() == rightNumber.getClass()) {
-					this.exitTypeDescriptor = "J";
-				}
+				this.exitTypeDescriptor = "J";
 				return new TypedValue(leftNumber.longValue() % rightNumber.longValue());
 			}
 			else if (CodeFlow.isIntegerForNumericOp(leftNumber) || CodeFlow.isIntegerForNumericOp(rightNumber)) {
-				if (leftNumber instanceof Integer && rightNumber instanceof Integer) {
-					this.exitTypeDescriptor = "I";
-				}
+				this.exitTypeDescriptor = "I";
 				return new TypedValue(leftNumber.intValue() % rightNumber.intValue());
 			}
 			else {
@@ -99,42 +92,41 @@ public class OpModulus extends Operator {
 		if (!getLeftOperand().isCompilable()) {
 			return false;
 		}
-		if (this.children.length>1) {
-			 if (!getRightOperand().isCompilable()) {
-				 return false;
-			 }
+		if (this.children.length > 1) {
+			if (!getRightOperand().isCompilable()) {
+				return false;
+			}
 		}
-		return this.exitTypeDescriptor!=null;
+		return (this.exitTypeDescriptor != null);
 	}
 
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow cf) {
 		getLeftOperand().generateCode(mv, cf);
 		String leftDesc = getLeftOperand().exitTypeDescriptor;
-		if (!CodeFlow.isPrimitive(leftDesc)) {
-			CodeFlow.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), leftDesc);
-		}
+		String exitDesc = this.exitTypeDescriptor;
+		Assert.state(exitDesc != null, "No exit type descriptor");
+		char targetDesc = exitDesc.charAt(0);
+		CodeFlow.insertNumericUnboxOrPrimitiveTypeCoercion(mv, leftDesc, targetDesc);
 		if (this.children.length > 1) {
 			cf.enterCompilationScope();
 			getRightOperand().generateCode(mv, cf);
 			String rightDesc = getRightOperand().exitTypeDescriptor;
 			cf.exitCompilationScope();
-			if (!CodeFlow.isPrimitive(rightDesc)) {
-				CodeFlow.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), rightDesc);
-			}
-			switch (this.exitTypeDescriptor.charAt(0)) {
+			CodeFlow.insertNumericUnboxOrPrimitiveTypeCoercion(mv, rightDesc, targetDesc);
+			switch (targetDesc) {
 				case 'I':
 					mv.visitInsn(IREM);
 					break;
 				case 'J':
 					mv.visitInsn(LREM);
 					break;
-				case 'F': 
+				case 'F':
 					mv.visitInsn(FREM);
 					break;
 				case 'D':
 					mv.visitInsn(DREM);
-					break;				
+					break;
 				default:
 					throw new IllegalStateException(
 							"Unrecognized exit type descriptor: '" + this.exitTypeDescriptor + "'");

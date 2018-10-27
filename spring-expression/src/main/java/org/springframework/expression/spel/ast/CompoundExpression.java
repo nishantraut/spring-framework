@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,16 +22,18 @@ import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.CodeFlow;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
+import org.springframework.lang.Nullable;
 
 /**
- * Represents a DOT separated expression sequence, such as 'property1.property2.methodOne()'
+ * Represents a DOT separated expression sequence, such as
+ * {@code 'property1.property2.methodOne()'}.
  *
  * @author Andy Clement
  * @since 3.0
  */
 public class CompoundExpression extends SpelNodeImpl {
 
-	public CompoundExpression(int pos,SpelNodeImpl... expressionComponents) {
+	public CompoundExpression(int pos, SpelNodeImpl... expressionComponents) {
 		super(pos, expressionComponents);
 		if (expressionComponents.length < 2) {
 			throw new IllegalStateException("Do not build compound expressions with less than two entries: " +
@@ -62,7 +64,7 @@ public class CompoundExpression extends SpelNodeImpl {
 			}
 			try {
 				state.pushActiveContextObject(result);
-				nextNode = this.children[cc-1];
+				nextNode = this.children[cc - 1];
 				return nextNode.getValueRef(state);
 			}
 			finally {
@@ -91,7 +93,7 @@ public class CompoundExpression extends SpelNodeImpl {
 	}
 
 	@Override
-	public void setValue(ExpressionState state, Object value) throws EvaluationException {
+	public void setValue(ExpressionState state, @Nullable Object value) throws EvaluationException {
 		getValueRef(state).setValue(value);
 	}
 
@@ -111,7 +113,7 @@ public class CompoundExpression extends SpelNodeImpl {
 		}
 		return sb.toString();
 	}
-	
+
 	@Override
 	public boolean isCompilable() {
 		for (SpelNodeImpl child: this.children) {
@@ -121,17 +123,11 @@ public class CompoundExpression extends SpelNodeImpl {
 		}
 		return true;
 	}
-	
+
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow cf) {
-		// TODO could optimize T(SomeType).staticMethod - no need to generate the T() part
 		for (int i = 0; i < this.children.length;i++) {
-			SpelNodeImpl child = this.children[i];
-			if (child instanceof TypeReference && (i + 1) < this.children.length &&
-					this.children[i + 1] instanceof MethodReference) {
-				continue;
-			}
-			child.generateCode(mv, cf);
+			this.children[i].generateCode(mv, cf);
 		}
 		cf.pushDescriptor(this.exitTypeDescriptor);
 	}

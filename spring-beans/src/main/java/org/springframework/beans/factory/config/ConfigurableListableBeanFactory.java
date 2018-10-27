@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.util.Iterator;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.lang.Nullable;
 
 /**
  * Configuration interface to be implemented by most listable bean factories.
@@ -77,7 +78,7 @@ public interface ConfigurableListableBeanFactory
 	 * implementation of the {@link org.springframework.beans.factory.ObjectFactory}
 	 * interface, which allows for lazy resolution of the actual target value.
 	 */
-	void registerResolvableDependency(Class<?> dependencyType, Object autowiredValue);
+	void registerResolvableDependency(Class<?> dependencyType, @Nullable Object autowiredValue);
 
 	/**
 	 * Determine whether the specified bean qualifies as an autowire candidate,
@@ -120,6 +121,18 @@ public interface ConfigurableListableBeanFactory
 	 * @see #getBeanNamesForAnnotation
 	 */
 	Iterator<String> getBeanNamesIterator();
+
+	/**
+	 * Clear the merged bean definition cache, removing entries for beans
+	 * which are not considered eligible for full metadata caching yet.
+	 * <p>Typically triggered after changes to the original bean definitions,
+	 * e.g. after applying a {@link BeanFactoryPostProcessor}. Note that metadata
+	 * for beans which have already been created at this point will be kept around.
+	 * @since 4.2
+	 * @see #getBeanDefinition
+	 * @see #getMergedBeanDefinition
+	 */
+	void clearMetadataCache();
 
 	/**
 	 * Freeze all bean definitions, signalling that the registered bean definitions

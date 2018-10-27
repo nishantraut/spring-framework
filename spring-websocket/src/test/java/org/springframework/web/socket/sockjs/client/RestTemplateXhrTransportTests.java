@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,13 +20,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import org.springframework.core.task.SyncTaskExecutor;
@@ -34,6 +33,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.lang.Nullable;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -67,13 +67,7 @@ public class RestTemplateXhrTransportTests {
 
 	private static final Jackson2SockJsMessageCodec CODEC = new Jackson2SockJsMessageCodec();
 
-	private WebSocketHandler webSocketHandler;
-
-
-	@Before
-	public void setup() throws Exception {
-		this.webSocketHandler = mock(WebSocketHandler.class);
-	}
+	private final WebSocketHandler webSocketHandler = mock(WebSocketHandler.class);
 
 
 	@Test
@@ -91,7 +85,7 @@ public class RestTemplateXhrTransportTests {
 	@Test
 	public void connectReceiveAndCloseWithPrelude() throws Exception {
 		StringBuilder sb = new StringBuilder(2048);
-		for (int i=0; i < 2048; i++) {
+		for (int i = 0; i < 2048; i++) {
 			sb.append('h');
 		}
 		String body = sb.toString() + "\n" + "o\n" + "a[\"foo\"]\n" + "c[3000,\"Go away!\"]";
@@ -109,7 +103,7 @@ public class RestTemplateXhrTransportTests {
 		StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
 		accessor.setDestination("/destination");
 		MessageHeaders headers = accessor.getMessageHeaders();
-		Message<byte[]> message = MessageBuilder.createMessage("body".getBytes(Charset.forName("UTF-8")), headers);
+		Message<byte[]> message = MessageBuilder.createMessage("body".getBytes(StandardCharsets.UTF_8), headers);
 		byte[] bytes = new StompEncoder().encode(message);
 		TextMessage textMessage = new TextMessage(bytes);
 		SockJsFrame frame = SockJsFrame.messageFrame(new Jackson2SockJsMessageCodec(), textMessage.getPayload());
@@ -182,7 +176,8 @@ public class RestTemplateXhrTransportTests {
 		SockJsUrlInfo urlInfo = new SockJsUrlInfo(new URI("http://example.com"));
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("h-foo", "h-bar");
-		TransportRequest request = new DefaultTransportRequest(urlInfo, headers, transport, TransportType.XHR, CODEC);
+		TransportRequest request = new DefaultTransportRequest(urlInfo, headers, headers,
+				transport, TransportType.XHR, CODEC);
 
 		return transport.connect(request, this.webSocketHandler);
 	}
@@ -190,13 +185,13 @@ public class RestTemplateXhrTransportTests {
 	private ClientHttpResponse response(HttpStatus status, String body) throws IOException {
 		ClientHttpResponse response = mock(ClientHttpResponse.class);
 		InputStream inputStream = getInputStream(body);
-		given(response.getStatusCode()).willReturn(status);
+		given(response.getRawStatusCode()).willReturn(status.value());
 		given(response.getBody()).willReturn(inputStream);
 		return response;
 	}
 
 	private InputStream getInputStream(String content) {
-		byte[] bytes = content.getBytes(Charset.forName("UTF-8"));
+		byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
 		return new ByteArrayInputStream(bytes);
 	}
 
@@ -212,7 +207,9 @@ public class RestTemplateXhrTransportTests {
 		}
 
 		@Override
-		public <T> T execute(URI url, HttpMethod method, RequestCallback callback, ResponseExtractor<T> extractor) throws RestClientException {
+		public <T> T execute(URI url, HttpMethod method, @Nullable RequestCallback callback,
+				@Nullable ResponseExtractor<T> extractor) throws RestClientException {
+
 			try {
 				extractor.extractData(this.responses.remove());
 			}

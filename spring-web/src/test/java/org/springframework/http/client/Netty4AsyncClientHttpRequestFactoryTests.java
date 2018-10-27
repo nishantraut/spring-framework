@@ -42,6 +42,7 @@ public class Netty4AsyncClientHttpRequestFactoryTests extends AbstractAsyncHttpR
 		eventLoopGroup.shutdownGracefully().sync();
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	protected AsyncClientHttpRequestFactory createRequestFactory() {
 		return new Netty4ClientHttpRequestFactory(eventLoopGroup);
@@ -50,6 +51,7 @@ public class Netty4AsyncClientHttpRequestFactoryTests extends AbstractAsyncHttpR
 	@Override
 	@Test
 	public void httpMethods() throws Exception {
+		super.httpMethods();
 		assertHttpMethod("patch", HttpMethod.PATCH);
 	}
 

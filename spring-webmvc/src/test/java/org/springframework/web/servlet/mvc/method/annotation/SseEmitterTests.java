@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.web.servlet.mvc.method.annotation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -96,7 +97,7 @@ public class SseEmitterTests {
 	public void sendEventFull() throws Exception {
 		this.emitter.send(event().comment("blah").name("test").reconnectTime(5000L).id("1").data("foo"));
 		this.handler.assertSentObjectCount(3);
-		this.handler.assertObject(0, ":blah\nname:test\nretry:5000\nid:1\ndata:", SseEmitter.TEXT_PLAIN);
+		this.handler.assertObject(0, ":blah\nevent:test\nretry:5000\nid:1\ndata:", SseEmitter.TEXT_PLAIN);
 		this.handler.assertObject(1, "foo");
 		this.handler.assertObject(2, "\n\n", SseEmitter.TEXT_PLAIN);
 	}
@@ -109,7 +110,7 @@ public class SseEmitterTests {
 		this.handler.assertObject(1, "foo");
 		this.handler.assertObject(2, "\ndata:", SseEmitter.TEXT_PLAIN);
 		this.handler.assertObject(3, "bar");
-		this.handler.assertObject(4, "\nname:test\nretry:5000\nid:1\n\n", SseEmitter.TEXT_PLAIN);
+		this.handler.assertObject(4, "\nevent:test\nretry:5000\nid:1\n\n", SseEmitter.TEXT_PLAIN);
 	}
 
 
@@ -146,6 +147,18 @@ public class SseEmitterTests {
 
 		@Override
 		public void completeWithError(Throwable failure) {
+		}
+
+		@Override
+		public void onTimeout(Runnable callback) {
+		}
+
+		@Override
+		public void onError(Consumer<Throwable> callback) {
+		}
+
+		@Override
+		public void onCompletion(Runnable callback) {
 		}
 	}
 

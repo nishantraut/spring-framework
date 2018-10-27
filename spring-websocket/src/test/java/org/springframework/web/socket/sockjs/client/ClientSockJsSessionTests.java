@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2015 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ public class ClientSockJsSessionTests {
 	public void setup() throws Exception {
 		SockJsUrlInfo urlInfo = new SockJsUrlInfo(new URI("http://example.com"));
 		Transport transport = mock(Transport.class);
-		TransportRequest request = new DefaultTransportRequest(urlInfo, null, transport, TransportType.XHR, CODEC);
+		TransportRequest request = new DefaultTransportRequest(urlInfo, null, null, transport, TransportType.XHR, CODEC);
 		this.handler = mock(WebSocketHandler.class);
 		this.connectFuture = new SettableListenableFuture<>();
 		this.session = new TestClientSockJsSession(request, this.handler, this.connectFuture);
@@ -129,8 +129,10 @@ public class ClientSockJsSessionTests {
 	@Test
 	public void handleFrameMessageWithWebSocketHandlerException() throws Exception {
 		this.session.handleFrame(SockJsFrame.openFrame().getContent());
-		willThrow(new IllegalStateException("Fake error")).given(this.handler).handleMessage(this.session, new TextMessage("foo"));
-		willThrow(new IllegalStateException("Fake error")).given(this.handler).handleMessage(this.session, new TextMessage("bar"));
+		willThrow(new IllegalStateException("Fake error")).given(this.handler)
+				.handleMessage(this.session, new TextMessage("foo"));
+		willThrow(new IllegalStateException("Fake error")).given(this.handler)
+				.handleMessage(this.session, new TextMessage("bar"));
 		this.session.handleFrame(SockJsFrame.messageFrame(CODEC, "foo", "bar").getContent());
 		assertThat(this.session.isOpen(), equalTo(true));
 		verify(this.handler).afterConnectionEstablished(this.session);

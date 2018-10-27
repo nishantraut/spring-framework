@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,14 +86,13 @@ public class SpringHandlerInstantiatorTests {
 		User user = new User("bob");
 		String json = this.objectMapper.writeValueAsString(user);
 		assertEquals("{\"username\":\"BOB\"}", json);
-
 	}
 
 	@Test
 	public void autowiredDeserializer() throws IOException {
 		String json = "{\"username\":\"bob\"}";
 		User user = this.objectMapper.readValue(json, User.class);
-		assertEquals(user.getUsername(), "BOB");
+		assertEquals("BOB", user.getUsername());
 	}
 
 	@Test
@@ -106,13 +105,13 @@ public class SpringHandlerInstantiatorTests {
 
 	@Test
 	public void applicationContextAwaretypeResolverBuilder() throws JsonProcessingException {
-		this.objectMapper.writeValueAsString(new Group("authors"));
+		this.objectMapper.writeValueAsString(new Group());
 		assertTrue(CustomTypeResolverBuilder.isAutowiredFiledInitialized);
 	}
 
 	@Test
 	public void applicationContextAwareTypeIdResolver() throws JsonProcessingException {
-		this.objectMapper.writeValueAsString(new Group("authors"));
+		this.objectMapper.writeValueAsString(new Group());
 		assertTrue(CustomTypeIdResolver.isAutowiredFiledInitialized);
 	}
 
@@ -137,7 +136,9 @@ public class SpringHandlerInstantiatorTests {
 		private Capitalizer capitalizer;
 
 		@Override
-		public void serialize(User user, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+		public void serialize(User user, JsonGenerator jsonGenerator,
+				SerializerProvider serializerProvider) throws IOException {
+
 			jsonGenerator.writeStartObject();
 			jsonGenerator.writeStringField("username", this.capitalizer.capitalize(user.getUsername()));
 			jsonGenerator.writeEndObject();
@@ -151,7 +152,7 @@ public class SpringHandlerInstantiatorTests {
 		private Capitalizer capitalizer;
 
 		@Override
-		public Object deserializeKey(String key, DeserializationContext context) throws IOException, JsonProcessingException {
+		public Object deserializeKey(String key, DeserializationContext context) throws IOException {
 			return this.capitalizer.capitalize(key);
 		}
 	}
@@ -165,13 +166,17 @@ public class SpringHandlerInstantiatorTests {
 		public static boolean isAutowiredFiledInitialized = false;
 
 		@Override
-		public TypeSerializer buildTypeSerializer(SerializationConfig config, JavaType baseType, Collection<NamedType> subtypes) {
+		public TypeSerializer buildTypeSerializer(SerializationConfig config, JavaType baseType,
+				Collection<NamedType> subtypes) {
+
 			isAutowiredFiledInitialized = (this.capitalizer != null);
 			return super.buildTypeSerializer(config, baseType, subtypes);
 		}
 
 		@Override
-		public TypeDeserializer buildTypeDeserializer(DeserializationConfig config, JavaType baseType, Collection<NamedType> subtypes) {
+		public TypeDeserializer buildTypeDeserializer(DeserializationConfig config,
+				JavaType baseType, Collection<NamedType> subtypes) {
+
 			return super.buildTypeDeserializer(config, baseType, subtypes);
 		}
 	}
@@ -197,7 +202,7 @@ public class SpringHandlerInstantiatorTests {
 			return JsonTypeInfo.Id.CUSTOM;
 		}
 
-		@Override
+		// Only needed when compiling against Jackson 2.7; gone in 2.8
 		public JavaType typeFromId(String s) {
 			return TypeFactory.defaultInstance().constructFromCanonical(s);
 		}
@@ -217,8 +222,13 @@ public class SpringHandlerInstantiatorTests {
 			return null;
 		}
 
-		// New in Jackson 2.5
+		@Override
 		public JavaType typeFromId(DatabindContext context, String id) {
+			return null;
+		}
+
+		// New in Jackson 2.7
+		public String getDescForKnownTypeIds() {
 			return null;
 		}
 	}
@@ -260,15 +270,6 @@ public class SpringHandlerInstantiatorTests {
 	@JsonTypeResolver(CustomTypeResolverBuilder.class)
 	@JsonTypeIdResolver(CustomTypeIdResolver.class)
 	public static class Group {
-
-		private String name;
-
-		public Group(String name) {
-			this.name = name;
-		}
-
-		public Group() {
-		}
 
 		public String getType() {
 			return Group.class.getName();

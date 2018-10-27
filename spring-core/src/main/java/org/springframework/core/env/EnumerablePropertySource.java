@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import org.springframework.util.ObjectUtils;
  * consider caching the result of {@link #getPropertyNames()} to fully exploit this
  * performance opportunity.
  *
- * Most framework-provided {@code PropertySource} implementations are enumerable;
+ * <p>Most framework-provided {@code PropertySource} implementations are enumerable;
  * a counter-example would be {@code JndiPropertySource} where, due to the
  * nature of JNDI it is not possible to determine all possible property names at
  * any given time; rather it is only possible to try to access a property
@@ -40,6 +40,7 @@ import org.springframework.util.ObjectUtils;
  * @author Chris Beams
  * @author Juergen Hoeller
  * @since 3.1
+ * @param <T> the source type
  */
 public abstract class EnumerablePropertySource<T> extends PropertySource<T> {
 
@@ -47,7 +48,6 @@ public abstract class EnumerablePropertySource<T> extends PropertySource<T> {
 		super(name, source);
 	}
 
-	@SuppressWarnings("unchecked")
 	protected EnumerablePropertySource(String name) {
 		super(name);
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package org.springframework.cache.annotation;
 
 import java.util.Collection;
-import javax.annotation.PostConstruct;
+import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.CacheManager;
@@ -28,42 +28,50 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.ImportAware;
 import org.springframework.core.annotation.AnnotationAttributes;
 import org.springframework.core.type.AnnotationMetadata;
-import org.springframework.util.Assert;
+import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
 /**
- * Abstract base {@code @Configuration} class providing common structure for enabling
- * Spring's annotation-driven cache management capability.
+ * Abstract base {@code @Configuration} class providing common structure
+ * for enabling Spring's annotation-driven cache management capability.
  *
  * @author Chris Beams
  * @author Stephane Nicoll
+ * @author Juergen Hoeller
  * @since 3.1
  * @see EnableCaching
  */
 @Configuration
-public abstract class AbstractCachingConfiguration<C extends CachingConfigurer> implements ImportAware {
+public abstract class AbstractCachingConfiguration implements ImportAware {
 
+	@Nullable
 	protected AnnotationAttributes enableCaching;
 
-	protected CacheManager cacheManager;
+	@Nullable
+	protected Supplier<CacheManager> cacheManager;
 
-	protected CacheResolver cacheResolver;
+	@Nullable
+	protected Supplier<CacheResolver> cacheResolver;
 
-	protected KeyGenerator keyGenerator;
+	@Nullable
+	protected Supplier<KeyGenerator> keyGenerator;
 
-	protected CacheErrorHandler errorHandler;
+	@Nullable
+	protected Supplier<CacheErrorHandler> errorHandler;
+
 
 	@Override
 	public void setImportMetadata(AnnotationMetadata importMetadata) {
 		this.enableCaching = AnnotationAttributes.fromMap(
 				importMetadata.getAnnotationAttributes(EnableCaching.class.getName(), false));
-		Assert.notNull(this.enableCaching,
-				"@EnableCaching is not present on importing class " +
-						importMetadata.getClassName());
+		if (this.enableCaching == null) {
+			throw new IllegalArgumentException(
+					"@EnableCaching is not present on importing class " + importMetadata.getClassName());
+		}
 	}
 
 	@Autowired(required = false)
-	void setConfigurers(Collection<C> configurers) {
+	void setConfigurers(Collection<CachingConfigurer> configurers) {
 		if (CollectionUtils.isEmpty(configurers)) {
 			return;
 		}
@@ -73,18 +81,18 @@ public abstract class AbstractCachingConfiguration<C extends CachingConfigurer> 
 					"Refactor the configuration such that CachingConfigurer is " +
 					"implemented only once or not at all.");
 		}
-		C configurer = configurers.iterator().next();
+		CachingConfigurer configurer = configurers.iterator().next();
 		useCachingConfigurer(configurer);
 	}
 
 	/**
 	 * Extract the configuration from the nominated {@link CachingConfigurer}.
 	 */
-	protected void useCachingConfigurer(C config) {
-		this.cacheManager = config.cacheManager();
-		this.cacheResolver = config.cacheResolver();
-		this.keyGenerator = config.keyGenerator();
-		this.errorHandler = config.errorHandler();
+	protected void useCachingConfigurer(CachingConfigurer config) {
+		this.cacheManager = config::cacheManager;
+		this.cacheResolver = config::cacheResolver;
+		this.keyGenerator = config::keyGenerator;
+		this.errorHandler = config::errorHandler;
 	}
 
 }
